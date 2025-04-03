@@ -26,84 +26,8 @@ const isPathClear = (px, py, x, y, boardState) => {
   return true;
 };
 
-const isPiecePinned = (piece, boardState) => {
-  const king = findKing(piece.team, boardState);
-  if (!king) return false;
-
-  return boardState.some((enemy) => {
-    if (enemy.team === piece.team) return false;
-    if (
-      ![PieceType.ROOK, PieceType.BISHOP, PieceType.QUEEN].includes(enemy.type)
-    )
-      return false;
-
-    if (
-      isPathClear(enemy.x, enemy.y, king.x, king.y, boardState) &&
-      isPathClear(enemy.x, enemy.y, piece.x, piece.y, boardState)
-    ) {
-      return true;
-    }
-    return false;
-  });
-};
-
-const canBlockOrCapture = (team, boardState, moveHistory) => {
-  const king = findKing(team, boardState);
-  if (!king) return false;
-
-  const attackingPieces = boardState.filter(
-    (p) =>
-      p.team !== team &&
-      isValidMove(p.x, p.y, king.x, king.y, p.type, p.team, boardState)
-  );
-
-  if (attackingPieces?.length !== 1) return false;
-
-  const attacker = attackingPieces[0];
-
-  // Check if any piece can capture the attacker
-  if (
-    boardState.some(
-      (p) =>
-        p.team === team &&
-        isValidMove(
-          p.x,
-          p.y,
-          attacker.x,
-          attacker.y,
-          p.type,
-          p.team,
-          boardState
-        )
-    )
-  ) {
-    return true;
-  }
-
-  // Check if any piece can block the attack
-  const attackPath = [];
-  let stepX = attacker.x === king.x ? 0 : attacker.x > king.x ? -1 : 1;
-  let stepY = attacker.y === king.y ? 0 : attacker.y > king.y ? -1 : 1;
-  let x = attacker.x + stepX,
-    y = attacker.y + stepY;
-
-  while (x !== king.x || y !== king.y) {
-    attackPath.push({ x, y });
-    x += stepX;
-    y += stepY;
-  }
-
-  return boardState.some(
-    (p) =>
-      p.team === team &&
-      attackPath.some((tile) =>
-        isValidMove(p.x, p.y, tile.x, tile.y, p.type, p.team, boardState)
-      )
-  );
-};
-
 // Check if a move puts the king in check
-export const isKingInCheck = (kingX, kingY, team, boardState, moveHistory) => {
+const isKingInCheck = (kingX, kingY, team, boardState) => {
   return boardState.some(
     (piece) =>
       piece.team !== team &&
@@ -114,8 +38,7 @@ export const isKingInCheck = (kingX, kingY, team, boardState, moveHistory) => {
         kingY,
         piece.type,
         piece.team,
-        boardState,
-        moveHistory
+        boardState
       )
   );
 };
@@ -126,36 +49,36 @@ const findKing = (team, boardState) => {
 };
 
 // Check if the current player is in checkmate
-
-export const isKingCheckmate = (team, boardState, moveHistory) => {
+const isCheckmate = (team, boardState) => {
   const king = findKing(team, boardState);
-  if (!king) return true;
+  if (!king) return true; // King doesn't exist, it's checkmate
 
-  if (!isKingInCheck(king.x, king.y, team, boardState)) return false;
+  if (!isKingInCheck(king.x, king.y, team, boardState)) return false; // Not in check
 
-  // If the king has a legal move, it's not checkmate
+  // Check if the king has any valid move
   for (let dx = -1; dx <= 1; dx++) {
     for (let dy = -1; dy <= 1; dy++) {
       if (dx === 0 && dy === 0) continue;
+      const newX = king.x + dx;
+      const newY = king.y + dy;
       if (
         isValidMove(
           king.x,
           king.y,
-          king.x + dx,
-          king.y + dy,
+          newX,
+          newY,
           PieceType.KING,
           team,
           boardState
         ) &&
-        !isKingInCheck(king.x + dx, king.y + dy, team, boardState)
+        !isKingInCheck(newX, newY, team, boardState)
       ) {
         return false;
       }
     }
   }
 
-  // If no piece can block or capture the attacker, it's checkmate
-  return !canBlockOrCapture(team, boardState, moveHistory);
+  return true;
 };
 
 export const isValidMove = (
@@ -166,14 +89,10 @@ export const isValidMove = (
   type,
   team,
   boardState,
-  moveHistory
+  enPassantTarget
 ) => {
   let targetOccupied = isTileOccupied(x, y, boardState);
   let targetOpponent = isOpponentPiece(x, y, boardState, team);
-
-  if (isPiecePinned({ x: px, y: py, team }, boardState)) {
-    return false;
-  }
 
   switch (type) {
     case PieceType.PAWN: {
@@ -196,31 +115,6 @@ export const isValidMove = (
       }
 
       // Capture move
-      // if (Math.abs(px - x) === 1 && y - py === pawnDirection) {
-      //   // Normal capture
-      //   if (isOpponentPiece(x, y, boardState, team)) return true;
-
-      //   // En passant capture
-      //   const lastMove = moveHistory[moveHistory?.length - 1];
-      //   if (lastMove) {
-      //     const [lastMoveFromX, lastMoveFromY, lastMoveToX, lastMoveToY] =
-      //       lastMove.match(/\d/g).map(Number);
-      //     const lastMovedPiece = boardState.find(
-      //       (p) => p.x === lastMoveToX && p.y === lastMoveToY
-      //     );
-
-      //     if (
-      //       lastMovedPiece &&
-      //       lastMovedPiece.type === PieceType.PAWN &&
-      //       lastMovedPiece.team !== team &&
-      //       lastMoveFromY === (team === TeamType.OUR ? 6 : 1) &&
-      //       lastMoveToY === (team === TeamType.OUR ? 4 : 3) &&
-      //       lastMoveToX === x
-      //     ) {
-      //       return true; // En passant is valid
-      //     }
-      //   }
-      // }
       if (
         Math.abs(px - x) === 1 &&
         y - py === pawnDirection &&

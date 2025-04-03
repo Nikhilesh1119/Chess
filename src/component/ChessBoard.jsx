@@ -5,9 +5,8 @@ import {
   TeamType,
   verticalAxis,
 } from "../constants/Constants";
-import { isKingCheckmate, isKingInCheck, isValidMove } from "./refree/Refree";
+import { isValidMove } from "./refree/Refree";
 import highlightMove from "../assets/highlightMove.png";
-import { getNotation } from "./refree/chessNotation";
 
 export default function ChessBoard() {
   const board = [];
@@ -19,8 +18,7 @@ export default function ChessBoard() {
   const [currentTurn, setCurrentTurn] = useState(TeamType.OUR);
   const [selectedPiece, setSelectedPiece] = useState(null);
   const [validMoves, setValidMoves] = useState([]);
-  const [moveHistory, setMoveHistory] = useState([]);
-  const [fullMoveNumber, setFullMoveNumber] = useState(1);
+
   // Initialize the board state only once
   useEffect(() => {
     const initialBoardState = [];
@@ -111,26 +109,15 @@ export default function ChessBoard() {
     setWinner(null);
   }
 
-  function selectPiece(prevX, prevY) {
-    const piece = pieces.find((p) => p.x === prevX && p.y === prevY);
+  function selectPiece(x, y) {
+    const piece = pieces.find((p) => p.x === x && p.y === y);
 
     if (!piece || piece.team !== currentTurn) return;
 
     const moves = [];
     for (let j = 0; j < 8; j++) {
       for (let i = 0; i < 8; i++) {
-        if (
-          isValidMove(
-            prevX,
-            prevY,
-            i,
-            j,
-            piece.type,
-            piece.team,
-            pieces,
-            moveHistory
-          )
-        ) {
+        if (isValidMove(x, y, i, j, piece.type, piece.team, pieces)) {
           moves.push({ x: i, y: j });
         }
       }
@@ -141,12 +128,10 @@ export default function ChessBoard() {
     // console.log(validMoves);
   }
 
-  function movePiece(currX, currY) {
+  function movePiece(x, y) {
     if (!selectedPiece) return;
-    if (selectedPiece.team !== currentTurn) return;
-    const isValid = validMoves.some(
-      (move) => move.x === currX && move.y === currY
-    );
+
+    const isValid = validMoves.some((move) => move.x === x && move.y === y);
 
     if (!isValid) {
       setSelectedPiece(null);
@@ -155,63 +140,21 @@ export default function ChessBoard() {
     }
 
     setPieces((prevPieces) => {
-      const capturedPiece = prevPieces.find(
-        (p) => p.x === currX && p.y === currY
-      );
       const updatedPieces = prevPieces
-        .filter((p) => !(p.x === currX && p.y === currY)) // Capture logic
+        .filter((p) => !(p.x === x && p.y === y)) // Capture logic
         .map((p) =>
           p.x === selectedPiece.x && p.y === selectedPiece.y
-            ? { ...p, currX, currY }
+            ? { ...p, x, y }
             : p
         );
 
       // Check if the opponent's king is in checkmate after a move
       const opponentTeam =
         currentTurn === TeamType.OUR ? TeamType.OPPONENT : TeamType.OUR;
-      const isCheck = isKingInCheck(
-        currX,
-        currY,
-        opponentTeam,
-        updatedPieces,
-        moveHistory
-      );
-      const isCheckmate = isKingCheckmate(
-        opponentTeam,
-        updatedPieces,
-        moveHistory
-      );
-
-      // Generate move notation
-      const moveNotation = getNotation(
-        selectedPiece.type,
-        selectedPiece.x,
-        selectedPiece.y,
-        currX,
-        currY,
-        !!capturedPiece,
-        isCheck,
-        isCheckmate,
-        moveHistory,
-        prevPieces
-      );
-
-      setMoveHistory((prevHistory) => {
-        const newHistory = [...prevHistory];
-
-        if (currentTurn === TeamType.OUR) {
-          newHistory.push(`${fullMoveNumber}. ${moveNotation}`);
-        } else {
-          newHistory[newHistory?.length - 1] += ` ${moveNotation}`;
-          setFullMoveNumber((prev) => prev + 1);
-        }
-
-        return newHistory;
-      });
-      if (isCheckmate) {
-        setGameEnded(true);
-        setWinner(currentTurn === TeamType.OUR ? "White" : "Black");
-      }
+      // if (isCheckmate(opponentTeam, updatedPieces)) {
+      //   setGameEnded(true);
+      //   setWinner(currentTurn === TeamType.OUR ? "White" : "Black");
+      // }
 
       return updatedPieces;
     });
@@ -224,8 +167,8 @@ export default function ChessBoard() {
   }
 
   // Rendering the chessboard
-  for (let j = verticalAxis?.length - 1; j >= 0; j--) {
-    for (let i = 0; i < horizontalAxis?.length; i++) {
+  for (let j = verticalAxis.length - 1; j >= 0; j--) {
+    for (let i = 0; i < horizontalAxis.length; i++) {
       let number = j + i + 2;
       let piece = pieces.find((p) => p.x === i && p.y === j);
       let isHighlighted = validMoves.some(
@@ -298,14 +241,6 @@ export default function ChessBoard() {
             ref={chessBoardRef}
           >
             {board}
-          </div>
-          <div className="move-history p-4 bg-gray-200 rounded">
-            <h3 className="text-lg font-bold">Move History</h3>
-            <ul>
-              {moveHistory.map((move, index) => (
-                <li key={index}>{move}</li>
-              ))}
-            </ul>
           </div>
         </>
       )}
